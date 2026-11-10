@@ -61,6 +61,7 @@ struct RISCVVulModelState {
     int fdt_size;
     bool have_aclint;
     bool use_ssram;
+    bool csr_stub;
     size_t nicram_size;
     uint64_t boot_addr;
     bool boot_addr_set;

@@ -1152,7 +1152,15 @@ static void vul_model_machine_init(MachineState *machine)
 
     s->vul_mem = vul_mem_create(memmap[VUL_MODEL_DRAM_NC].base, s->nicram_size);
     s->vul_mem_hi = vul_mem_create(memmap[VUL_MODEL_DRAM_HI_NC].base, memmap[VUL_MODEL_DRAM_HI_NC].size);
-    s->vul_csr = vul_csr_create(memmap[VUL_MODEL_CSRS].base);
+    if (s->csr_stub) {
+        /* No SW model: back the CSR window with RAM so accesses don't block on ZMQ */
+        MemoryRegion *csr_stub = g_new(MemoryRegion, 1);
+        memory_region_init_ram(csr_stub, NULL, "riscv_vul_model_board.csr_stub",
+                               memmap[VUL_MODEL_CSRS].size, &error_fatal);
+        memory_region_add_subregion(system_memory, memmap[VUL_MODEL_CSRS].base, csr_stub);
+    } else {
+        s->vul_csr = vul_csr_create(memmap[VUL_MODEL_CSRS].base);
+    }
     s->acc = modacc_create(memmap[VUL_MODEL_ACC].base, memmap[VUL_MODEL_ACC].size);
     s->mctp_emu = sockdma_create(memmap[VUL_MODEL_MCTP_SOCKDMA].base, memmap[VUL_MODEL_MCTP_SOCKDMA].size, s->mctp_emu_sock);
 
@@ -1228,6 +1236,20 @@ static void vul_model_set_ssram(Object *obj, bool value, Error **errp)
     RISCVVulModelState *s = RISCV_VUL_MODEL_MACHINE(obj);
 
     s->use_ssram = value;
+}
+
+static bool vul_model_get_csr_stub(Object *obj, Error **errp)
+{
+    RISCVVulModelState *s = RISCV_VUL_MODEL_MACHINE(obj);
+
+    return s->csr_stub;
+}
+
+static void vul_model_set_csr_stub(Object *obj, bool value, Error **errp)
+{
+    RISCVVulModelState *s = RISCV_VUL_MODEL_MACHINE(obj);
+
+    s->csr_stub = value;
 }
 
 static char *vul_model_get_nicram(Object *obj, Error **errp)
@@ -1371,6 +1393,11 @@ static void vul_model_machine_class_init(ObjectClass *oc, const void *data)
                                    vul_model_set_ssram);
     object_class_property_set_description(oc, "ssram",
                                           "Use an SSRAM to boot from, rather than starting directly from LLC");
+
+    object_class_property_add_bool(oc, "csr-stub", vul_model_get_csr_stub,
+                                   vul_model_set_csr_stub);
+    object_class_property_set_description(oc, "csr-stub",
+                                          "Back the CSR window with RAM instead of the SW model (standalone boot)");
 
     object_class_property_add_str(oc, "nicram", vul_model_get_nicram,
                                   vul_model_set_nicram);
