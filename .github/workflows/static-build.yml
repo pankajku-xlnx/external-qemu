@@ -1,0 +1,18 @@
+name: static-build
+on:
+  push:
+    branches: [user/pankajku-xlnx/qemu-static-ci]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use public Alpine base image
+        run: sed -i 's#^FROM .*#FROM alpine:3.24#' scripts/static-build/Dockerfile.alpine
+      - name: Build
+        run: CONTAINER_ENGINE=docker scripts/static-build/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qemu-static-asset
+          path: asset.tgz
